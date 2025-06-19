@@ -1,57 +1,36 @@
-import type { Request, Response } from "express";
-import { prisma } from "../lib/prisma";
-import { notifylog } from "../lib/notifylog";
+import type { Request, Response } from "express"
+import { z } from "zod"
+import { prisma } from "../lib/prisma"
+import { HTTPError } from "../lib/errors"
+import { config } from "../config"
 
 export const createTodoController = async (request: Request, response: Response) => {
-  const userId = request.headers['x-user-id']
+  const bodySchema = z.object({ title: z.string().min(1) })
+  const { title } = bodySchema.parse(request.body)
 
-  if(!userId) {
-    return response.status(403).send({
-      error: 'Not authorized'
-    })
+  const user = request.user
+  if (!user) {
+    throw new HTTPError(401, "Not authorized")
   }
 
-  const user = await prisma.user.findUnique({
-    where: {
-      id: userId as string
-    },
+  const userRecord = await prisma.user.findUnique({
+    where: { id: user.userId },
     select: {
       id: true,
-      name: true,
-      email: true,
-      stripeSubscriptionId: true,
+      _count: { select: { todos: true } },
       stripeSubscriptionStatus: true,
-      _count: {
-        select: {
-          todos: true
-        }
-      }
-    }
+    },
   })
-
-  if(!user) {
-    return response.status(403).send({
-      error: 'Not authorized'
-    })
+  if (!userRecord) {
+    throw new HTTPError(401, "Not authorized")
   }
 
-  const hasQuotaAvailable = user._count.todos <= 5
-  const hasActiveSubscription = !!user.stripeSubscriptionId
-
-  if(!hasQuotaAvailable && !hasActiveSubscription && user.stripeSubscriptionStatus !== 'active') {
-    return response.status(403).send({
-      error: 'Not quota available. Please upgrade your plan.'
-    })
+  const hasQuotaAvailable = userRecord._count.todos < config.maxFreeTodos
+  const hasActiveSubscription = userRecord.stripeSubscriptionStatus === "active"
+  if (!hasQuotaAvailable && !hasActiveSubscription) {
+    throw new HTTPError(403, "No quota available. Please upgrade your plan.")
   }
 
-  const { title } = request.body
-
-  const todo = await prisma.todo.create({
-    data: {
-      title,
-      ownerId: user.id
-    }
-  })
-
-  return response.status(201).send(todo)
+  const todo = await prisma.todo.create({ data: { title, ownerId: userRecord.id } })
+  response.status(201).json(todo)
 }

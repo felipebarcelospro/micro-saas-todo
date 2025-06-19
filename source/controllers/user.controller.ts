@@ -1,66 +1,44 @@
-import type { Request, Response } from "express";
-import { prisma } from "../lib/prisma";
-import { createStripeCustomer } from "../lib/stripe";
+import type { Request, Response } from "express"
+import { prisma } from "../lib/prisma"
+import { createStripeCustomer } from "../lib/stripe"
+import { z } from "zod"
+import { HTTPError } from "../lib/errors"
+import jwt from "jsonwebtoken"
+import { config } from "../config"
 
 export const listUsersController = async (request: Request, response: Response) => {
   const users = await prisma.user.findMany()
-  response.send(users)
+  response.json(users)
 }
 
 export const findOneUserController = async (request: Request, response: Response) => {
-  const { userId } = request.params
+  const paramsSchema = z.object({ userId: z.string().uuid() })
+  const { userId } = paramsSchema.parse(request.params)
 
-  const user = await prisma.user.findUnique({
-    where: {
-      id: userId
-    }
-  })
-
-  if(!user) {
-    return response.status(404).send({
-      error: 'Not found'
-    })
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) {
+    throw new HTTPError(404, "User not found")
   }
 
-  response.send(user)
+  response.json(user)
 }
 
 export const createUserController = async (request: Request, response: Response) => {
-  const { name, email } = request.body
+  const bodySchema = z.object({ name: z.string().min(1), email: z.string().email() })
+  const { name, email } = bodySchema.parse(request.body)
 
-  if(!name || !email) {
-    return response.send({
-      error: 'Name or email is invalid'
-    })
+  const existingUser = await prisma.user.findUnique({ where: { email }, select: { id: true } })
+  if (existingUser) {
+    throw new HTTPError(400, "Email already in use")
   }
 
-  const userEmailAlreadyExists = await prisma.user.findUnique({
-    where: {
-      email
-    },
-    select: {
-      id: true
-    }
-  })
+  const stripeCustomer = await createStripeCustomer({ name, email })
+  const user = await prisma.user.create({ data: { name, email, stripeCustomerId: stripeCustomer.id } })
 
-  if(userEmailAlreadyExists) {
-    return response.status(400).send({
-      error: 'Email already in use'
-    })
-  }
-
-  const stripeCustomer = await createStripeCustomer({
-    name,
-    email
-  })
-
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      stripeCustomerId: stripeCustomer.id
-    }
-  })
-
-  response.send(user)
+  const token = jwt.sign(
+    { userId: user.id, email: user.email },
+    config.jwt.secret,
+    { expiresIn: config.jwt.expiresIn }
+  )
+  response.status(201).json({ user, token })
 }

@@ -1,29 +1,13 @@
-import type { Request, Response } from "express";
-import { prisma } from "../lib/prisma";
-import { createCheckoutSession } from "../lib/stripe";
+import type { Request, Response } from "express"
+import { createCheckoutSession } from "../lib/stripe"
+import { HTTPError } from "../lib/errors"
 
 export const createCheckoutController = async (request: Request, response: Response) => {
-  const userId = request.headers['x-user-id']
-
-  if(!userId) {
-    return response.status(403).send({
-      error: 'Not authorized'
-    })
+  const user = request.user
+  if (!user) {
+    throw new HTTPError(401, "Not authorized")
   }
 
-  const user = await prisma.user.findUnique({
-    where: {
-      id: userId as string
-    }
-  })
-
-  if(!user) {
-    return response.status(403).send({
-      error: 'Not authorized'
-    })
-  }
-
-  const checkout = await createCheckoutSession(user.id, user.email)
-
-  return response.send(checkout)
+  const checkout = await createCheckoutSession(user.userId, user.email)
+  response.json(checkout)
 }
