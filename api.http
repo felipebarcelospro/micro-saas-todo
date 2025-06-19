@@ -24,3 +24,19 @@ x-user-id: 542998ff-71ef-4482-9327-b3e30e7bc44d
 ###
 POST http://localhost:3000/checkout HTTP/1.1
 x-user-id: 542998ff-71ef-4482-9327-b3e30e7bc44d
+
+###
+GET http://localhost:3000/posts HTTP/1.1
+
+###
+GET http://localhost:3000/posts/542998ff-71ef-4482-9327-b3e30e7bc44d HTTP/1.1
+
+###
+POST http://localhost:3000/posts HTTP/1.1
+content-type: application/json
+x-user-id: 542998ff-71ef-4482-9327-b3e30e7bc44d
+
+{
+    "title": "My first blog post",
+    "content": "Hello world!"
+}
