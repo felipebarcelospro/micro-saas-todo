@@ -1,8 +1,24 @@
+import dotenv from 'dotenv'
+
+dotenv.config()
+
+function getEnvVar(key: string, defaultValue?: string): string {
+  const value = process.env[key]
+  if (value !== undefined) return value
+  if (defaultValue !== undefined) return defaultValue
+  throw new Error(`Environment variable ${key} is not set`)
+}
+
 export const config = {
   stripe: {
-    publishableKey: 'pk_test_51OjLOeG9zZ5BQQOjZPv1SMm1PAZjJWgtFHrm6HXwxB5AEHlWiRC9Rkv5WTBlfEkDccRCjrnSsJAC6DPtCTnqX9Ty00oubljWjt',
-    secretKey: 'sk_test_51OjLOeG9zZ5BQQOjBKEcN7jwwjFupQcRLsTRmfWkOa1YAYbMPTfWggZAo42BReJ4oVXuGjlZHfQ6ePTxDPttYHds00y3bFJSDs',
-    proPriceId: 'price_1OjLc7G9zZ5BQQOjegepXNMI',
-    webhookSecret: 'whsec_17a14e2622bead06a4132460bb6ea5a4a9b3a14e8c81f7cb7ebaa73f4cd770e5'
-  }
+    publishableKey: getEnvVar('STRIPE_PUBLISHABLE_KEY'),
+    secretKey: getEnvVar('STRIPE_SECRET_KEY'),
+    proPriceId: getEnvVar('STRIPE_PRO_PRICE_ID'),
+    webhookSecret: getEnvVar('STRIPE_WEBHOOK_SECRET_KEY'),
+  },
+  maxFreeTodos: Number(process.env.MAX_FREE_TODOS || 5),
+  jwt: {
+    secret: getEnvVar('JWT_SECRET'),
+    expiresIn: process.env.JWT_EXPIRES_IN || '1d',
+  },
 }
